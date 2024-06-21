@@ -1,0 +1,149 @@
+---
+title: "An analysis of COVID19 cases data"
+---
+COVID dataset urls:
+
+- Confirmed US: https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv
+- Confirmed Global: https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv
+- Deaths US: https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv
+- Deaths Global: https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv
+- Recovered Global: https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv
+
+- Data repo address: https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/
+
+````{r get_covid_data}
+library(tidyverse)
+
+url_in <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+
+file_names <- c("time_series_covid19_confirmed_US.csv","time_series_covid19_confirmed_global.csv","time_series_covid19_deaths_US.csv", "time_series_covid19_deaths_global.csv")
+urls <- str_c(url_in,file_names)
+urls
+````
+
+````{r read_covid_data}
+us_cases <- read_csv(urls[1])
+global_cases <- read_csv(urls[2])
+us_deaths <- read_csv(urls[3])
+global_deaths <- read_csv(urls[4])
+````
+
+Intially I will do some adjustment and manipulation to make the data easier to explore and analyze
+
+````{r turn_long}
+global_cases_long <- global_cases %>%
+  pivot_longer(cols = starts_with("1/"), names_to = "Date", values_to = "Cases")
+
+# Convert the Date column to Date type
+global_cases_long$Date <- mdy(global_cases_long$Date)
+
+# View the cleaned data
+head(global_cases_long)
+````
+
+## Total number of cases
+Since our data on cases seems to be cumilatives I'd like to get some stats on face value just to see what that cumulative country stats look like
+
+````{r cases_by_country}
+total_cases_by_country <- global_cases_long %>%
+  group_by(`Country/Region`) %>%
+  summarize(Total_Cases = max(Cases, na.rm = TRUE)) %>%
+  arrange(desc(Total_Cases))
+
+# View the top 10 countries
+head(total_cases_by_country, 10)
+````
+
+````{r plot_cases_by_country}
+ggplot(head(total_cases_by_country, 10), aes(x = reorder(`Country/Region`, -Total_Cases), y = Total_Cases)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Top 10 Countries by Total Cumulative COVID-19 Cases", 
+       x = "Country", 
+       y = "Total Cases") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+````
+
+It does seem intresting that the top countries by cases are likely the top countries by population while very clearly missing china but we will look at this later when we bring in some population data
+
+````{r deaths_long}
+global_deaths_long <- global_deaths %>%
+  pivot_longer(cols = starts_with("1/"), names_to = "Date", values_to = "Deaths")
+
+# Convert the Date column to Date type
+global_deaths_long$Date <- mdy(global_deaths_long$Date)
+
+# View the cleaned data
+head(global_deaths_long)
+````
+
+#### I'd like to look at the top deaths by countries same way we looked at the cases
+
+````{r deaths_by_country}
+total_deaths_by_country <- global_deaths_long %>%
+  group_by(`Country/Region`) %>%
+  summarize(Total_Deaths = max(Deaths, na.rm = TRUE)) %>%
+  arrange(desc(Total_Deaths))
+
+# view top 10 countries by deaths
+head(total_deaths_by_country, 10)
+````
+
+````{r plot_deaths_by_country}
+top_10_countries <- head(total_deaths_by_country, 10)
+ggplot(top_10_countries, aes(x = reorder(`Country/Region`, -Total_Deaths), y = Total_Deaths)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Top 10 Countries by Total Cumulative COVID-19 Deaths", 
+       x = "Country", 
+       y = "Deaths") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+````
+
+Roughly looking at the the deaths there also seems to be a population skew in the top couple of countries but there is also a clear effect from measures against covid
+
+````{r plot_cum_by_time}
+global_deaths_over_time <- global_deaths_long %>%
+  group_by(Date) %>%
+  summarize(Total_Deaths = sum(Deaths, na.rm = TRUE))
+
+# plot global cumulative cases over time
+ggplot(global_deaths_over_time, aes(x = Date, y = Total_Deaths)) +
+  geom_line(color = "blue") +
+  labs(title = "Global Cumulative COVID-19 Cases Over Time", x = "Date", y = "Total Deaths")
+````
+
+It does look like the most aggressive growth was in the 2021 -> 2022 season. Tappering off around february 2022, which is likely a slighlty lagging indicator after the two quarters of 2022 (summer and fall) where vaccine adminsitration was very high world wide at least based on this chart
+https://ourworldindata.org/grapher/cumulative-covid-vaccinations
+
+Linear Regression Model: Predicting Cumulative Cases Over Time
+````{r agg_model}
+# Aggregate global cases over time
+global_cases_over_time <- global_cases_long %>%
+  group_by(Date) %>%
+  summarize(Total_Cases = sum(Cases, na.rm = TRUE))
+
+# Fit a linear regression model
+model <- lm(Total_Cases ~ Date, data = global_cases_over_time)
+
+# Summary of the model
+summary(model)
+````
+
+````{r vis_model}
+# Predicting the cases using the model
+global_cases_over_time <- global_cases_over_time %>%
+  mutate(Predicted_Cases = predict(model, newdata = global_cases_over_time))
+
+# Plot the actual vs predicted cases
+ggplot(global_cases_over_time, aes(x = Date)) +
+  geom_line(aes(y = Total_Cases), color = "blue", size = 1) +
+  geom_line(aes(y = Predicted_Cases), color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Global Cumulative COVID-19 Cases: Actual vs Predicted",
+       x = "Date",
+       y = "Total Cases") +
+  theme_minimal()
+````
+
+
+## Analysis of model
+
+as we can see we can create a very rough linear model to predict very basic growth of global covid cases. There are some very important things to note about this model though, it only represents a pattern that is exhibited in a short and unusual window of time. If we were to expand this model to look forward past the historical data I would say it is extremely unlikely that the model would be accurate or representative for a few reasons. 1. We don't test and publish case data as rigorously as we did during COVID (2019-2022) so that is likely to bias. The other thing that is likely to change is how social distancing, masking and boosters are not rigorously enforced/used as they were, making the fundamentals that shape the pattern very different. For these reasons, I would say this is fine for what it is used for here. The last part is that I believe the relationship over time is fundamentally not linear, I think it is likely closer to a sigmoid growth curve where over time the rate slows down as more people are vaccinated and have already gotten covid.

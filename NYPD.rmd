@@ -1,0 +1,213 @@
+## NYPD Shooting data analysis
+
+### Dataset: this dataset includes a breakdown of all recorded shooting incidents that occured in NYC's borough's. This data was published by the City of New York on the GSA's data.gov .
+
+The dataset includes time information about the incident, location descriptions along with boroughs, information about the perps if known and the victims
+
+
+With this dataset I am primarly intrested in a couple of items. I initially want to initially look at data distributions over time. Starting with the highest resolultion and the reducing it over time to see if there are any patterns we can identify. With that we'll look at month by month and year by year and finally seasonalilty. 
+Next we'll look at any incident characteristics we can compare like the locations, perp and vic age group. Finally we'll see if we can predict any patterns based on the historical data we have.
+
+````{r get_NYPD_data}
+library(tidyverse)
+
+data_path <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv"
+
+NYPD_data <- read_csv(data_path)
+NYPD_data
+````
+
+````{r inspect_NYPD}
+glimpse(NYPD_data)
+head(NYPD_data)
+````
+
+````{r convert_datetime}
+NYPD_data <- NYPD_data %>%
+  mutate(
+    OCCUR_DATE = as.Date(OCCUR_DATE, format = "%m/%d/%Y"),
+    OCCUR_TIME = hms::as_hms(OCCUR_TIME)
+  )
+NYPD_data
+````
+
+#### Summary Statistics and Metadata
+````{r summary_nypd}
+summary(NYPD_data)
+````
+
+#### By Borough stats
+````{r borough_stats}
+NYPD_data %>%
+  count(BORO)
+````
+
+According to the table below sourced from [here](https://www.citypopulation.de/en/usa/newyorkcity/) it seems pretty logical that the Borough with the most population (Queens) has the highest number of incidents
+
+| Name                           | Status  | Population Census 1990-04-01 | Population Census 2000-04-01 | Population Census 2010-04-01 | Population Census 2020-04-01 | Population Estimate 2022-07-01 |
+|--------------------------------|---------|------------------------------|------------------------------|------------------------------|------------------------------|--------------------------------|
+| Bronx                          | Borough | 1,203,789                    | 1,332,650                    | 1,385,108                    | 1,472,653                    | 1,356,476                      |
+| Brooklyn (Kings County)        | Borough | 2,300,664                    | 2,465,326                    | 2,504,700                    | 2,736,119                    | 2,561,225                      |
+| Manhattan (New York County)    | Borough | 1,487,536                    | 1,537,195                    | 1,585,873                    | 1,694,250                    | 1,597,451                      |
+| Queens                         | Borough | 1,951,598                    | 2,229,379                    | 2,230,722                    | 2,405,425                    | 2,252,196                      |
+| Staten Island (Richmond County)| Borough | 378,977                      | 443,728                      | 468,730                      | 495,752                      | 490,687                        |
+| New York City                  | City    | 7,322,564                    | 8,008,278                    | 8,175,133                    | 8,804,199                    | 8,258,035                      |
+
+#### Incidents over time
+
+````{r incidents_time_series}
+NYPD_data %>%
+  count(OCCUR_DATE) %>%
+  ggplot(aes(x = OCCUR_DATE, y = n)) +
+  geom_line() +
+  labs(title = "Number of Shooting Incidents Over Time", x = "Date", y = "Number of Incidents")
+````
+
+With this data it is very hard to really tell a pattern besides one of individual dates that are spikes. You can see a roughly seasonal chart though
+
+To look at it monthly we need to do the following:
+````{r monthly_incidents}
+NYPD_data <- NYPD_data %>%
+  mutate(
+    Year = lubridate::year(OCCUR_DATE),
+    Month = lubridate::month(OCCUR_DATE, label = TRUE)
+  )
+
+monthly_data <- NYPD_data %>%
+  count(Year, Month)
+
+monthly_data %>%
+  ggplot(aes(x = Month, y = n, group = Year, color = as.factor(Year))) +
+  geom_line() +
+  labs(title = "Number of Shooting Incidents by Month of the Year", x = "Month", y = "Number of Incidents", color = "Year") +
+  theme_minimal()
+````
+
+Not being super scientific about it but it seems like the years might be split between unimodal with a peak in the middle of the year and bimodal peaks around the ends of the summer with a very clear peak in july 2020 whule it seems that feb 2020 was a pretty clear drop being almost the third lowest month of all time (in the included range). If I were to guess NYC in Feb is cold and snowy and July is the warmest month the most people are outside vs inside and COVID year being lower (mostly) does seem to support that thought
+
+````{r monthly_agg}
+monthly_aggregated_data <- NYPD_data %>%
+  count(Month) %>%
+  arrange(Month)
+
+
+monthly_aggregated_data %>%
+  ggplot(aes(x = Month, y = n)) +
+  geom_line(group = 1) +
+  geom_point() +
+  labs(title = "Number of Shooting Incidents Aggregated Monthly for All Years", x = "Month", y = "Number of Incidents") +
+  theme_minimal()
+````
+
+It does seem like feb generally is a historically lower month compared to all the months so it is a good sample to check for with one off years like 2020
+
+````{r yearly_agg}
+yearly_data <- NYPD_data %>%
+  count(Year)
+
+yearly_data %>%
+  ggplot(aes(x = Year, y = n)) +
+  geom_line(group = 1) +
+  geom_point() +
+  labs(title = "Number of Shooting Incidents Aggregated Yearly", x = "Year", y = "Number of Incidents") +
+  theme_minimal()
+````
+
+And when we do check our hypothesis against the annual aggregate it does seems like this stands true, that the rate was dropping YOY but increased dramatically during COVID.
+
+#### Incident characteristics analysis
+````{r incident_char}
+NYPD_data %>%
+  count(LOC_OF_OCCUR_DESC) %>%
+  ggplot(aes(x = reorder(LOC_OF_OCCUR_DESC, -n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Location of Shooting Incidents", x = "Location", y = "Number of Incidents") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# Perpetrator age group
+NYPD_data %>%
+  count(PERP_AGE_GROUP) %>%
+  ggplot(aes(x = reorder(PERP_AGE_GROUP, -n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Perpetrator Age Group", x = "Age Group", y = "Number of Incidents")
+
+# Victim age group
+NYPD_data %>%
+  count(VIC_AGE_GROUP) %>%
+  ggplot(aes(x = reorder(VIC_AGE_GROUP, -n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Victim Age Group", x = "Age Group", y = "Number of Incidents")
+````
+
+Based on this data I do think there is a clear bias in the age catigory that would lead to some issues if we try to model using it. Given the fact that we have almost all the victims ages but a lot of the perp age is missing indicate 1. that we don't know who the perp that comitted it is and 2. So it would be misguided to try to corelate heavily incomplete data with close to complete data.
+
+I do think though that it would be useful and likely easier to try to predict the number of incidents by month
+````{r monthly_plot_pre_model}
+NYPD_data <- NYPD_data %>%
+  mutate(
+    Year = lubridate::year(OCCUR_DATE),
+    Month = lubridate::month(OCCUR_DATE, label = TRUE),
+    Month_num = lubridate::month(OCCUR_DATE)
+  )
+
+monthly_aggregated_data <- NYPD_data %>%
+  count(Month, Month_num) %>%
+  arrange(Month_num)
+
+monthly_aggregated_data %>%
+  ggplot(aes(x = Month, y = n)) +
+  geom_line(group = 1) +
+  geom_point() +
+  labs(title = "Number of Shooting Incidents Aggregated Monthly for All Years", x = "Month", y = "Number of Incidents") +
+  theme_minimal()
+````
+
+````{r monthly_model}
+# Fit a polynomial model to predict the number of incidents by month
+poly_model <- lm(n ~ poly(Month_num, 2), data = monthly_aggregated_data)
+
+# Summary of the model
+summary(poly_model)
+
+# Predict values using the polynomial model
+monthly_aggregated_data <- monthly_aggregated_data %>%
+  mutate(predicted = predict(poly_model, newdata = .))
+
+# Plot actual vs. predicted values
+monthly_aggregated_data %>%
+  ggplot(aes(x = Month_num)) +
+  geom_line(aes(y = n), color = "red", size = 1, linetype = "dashed") +
+  geom_line(aes(y = predicted), color = "blue", size = 1) +
+  scale_x_continuous(breaks = 1:12, labels = levels(monthly_aggregated_data$Month)) +
+  labs(title = "Actual vs. Predicted Number of Shooting Incidents by Month of the Year", x = "Month", y = "Number of Incidents", color = "Legend") +
+  theme_minimal() +
+  scale_color_manual(values = c("red" = "Actual", "blue" = "Predicted"))
+````
+
+````{r monthly_model_summary}
+summary(poly_model)
+````
+
+With this we can see that we can likely predict the monthly crimes using a polynomial regression with a not so terrible 0.708 r squared - Not bad for a first pass
+
+With this analysis so far we can make a few guesses.
+
+1. There is a fairly clear seasonal trend where there is a peak in the summer and very low number of incidents in the winter
+   1. this can be due to an actual seasonal trend or a reporting bias where there are less people outside to report the incident due to cold weather
+2. There is a decently clear concentration of age groups in the vitims around the 25-44 and 18-24 age range. I would potentially like to see this adjusted for population to see if there is indeed a higher concentration of incidents per capita in any of the groups or if this is sampling bias of sorts
+3. There was a fairly sizable YOY decrease in incidents until covid, so I'd like to see some added borough stats on potentially socio economic variables such as food insecurity over time to see if that has some correclation with increased incidents
+
+Potential Biases:
+
+- Reporting biases with time of day/seasonal and when people are actually outside
+- Potential lack of reporting in neighborhoods or boroughs that have historically has issues with the police
+- The dataset might only include incidents that meet a certain criteria for severity or involvement (e.g., only shootings with injuries or fatalities). Less serious incidents might not be reported.
+- Police officers might be more likely to report shootings in certain neighborhoods or involving certain demographics due to implicit bias or focus on specific areas.
+
+
+## Other types of break downs I would try to do given I had enough time to do each in depth:
+- A seasonalilty breakdown given that we saw some intresting trends between months
+- A brough racial breakdown to see if there is a racial correclation in any of the boroughs with race of perp and vic
+- An economic breakdown to see if average income ties into brough shootings per capita
+- Long/Lat clusters
+- Other possible correlations in the geography vs other variables
