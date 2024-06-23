@@ -362,6 +362,18 @@ display: none;
 <li><p>Recovered Global: <a href="https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv" class="uri">https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv</a></p></li>
 <li><p>Data repo address: <a href="https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/" class="uri">https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/</a></p></li>
 </ul>
+<p>In this report I’d like to investigate and see if we can use
+timeseries analysis of this data to correlate cases and deaths in some
+way and look to see where what the overall trend was for the COVID
+pandemic</p>
+<p>We’ll start with importing and tidying up the data.</p>
+<p>The data set is from the Johns Hopkins Coronavirus Resource Center
+and aggregates data from the US CDC, ECDC, and other local and
+international data sources to give a roughly representative picture. It
+is import to notice that a clear source of bias in the analysis is data
+availability. There are countries that are not represented in the
+dataset due to either lack of testing and tracking or lack or publishing
+for the data so that should be noted</p>
 <pre class="r"><code>library(tidyverse)</code></pre>
 <pre><code>## Warning: package &#39;ggplot2&#39; was built under R version 4.3.2</code></pre>
 <pre><code>## Warning: package &#39;tidyr&#39; was built under R version 4.3.2</code></pre>
@@ -620,6 +632,18 @@ that I believe the relationship over time is fundamentally not linear, I
 think it is likely closer to a sigmoid growth curve where over time the
 rate slows down as more people are vaccinated and have already gotten
 covid.</p>
+<div id="conclusion" class="section level3">
+<h3>Conclusion</h3>
+<p>As we saw exhibited in the data COVID had a hyper growth period where
+it grew uncontrolled globally, and during 2021 continued to grow quite
+aggressively as experts had warned. We can likely correlate cases to
+deaths bit it is difficult to do with a different number of varibles
+that can affect this from country to country. But with a little bit of a
+time delay to a certain extent we can see that the number of cases grew
+less aggressively starting after the wide spread of the vaccine in the
+US but globally we don’t have data on the availability of other vaccines
+to be able to do a similar comparison.</p>
+</div>
 </div>
 
 

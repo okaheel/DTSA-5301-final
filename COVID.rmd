@@ -11,6 +11,12 @@ COVID dataset urls:
 
 - Data repo address: https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/
 
+In this report I'd like to investigate and see if we can use timeseries analysis of this data to correlate cases and deaths in some way and look to see where what the overall trend was for the COVID pandemic
+
+We'll start with importing and tidying up the data.
+
+The data set is from the Johns Hopkins Coronavirus Resource Center and aggregates data from the US CDC, ECDC, and other local and international data sources to give a roughly representative picture. It is import to notice that a clear source of bias in the analysis is data availability. There are countries that are not represented in the dataset due to either lack of testing and tracking or lack or publishing for the data so that should be noted 
+
 ````{r get_covid_data}
 library(tidyverse)
 
@@ -147,3 +153,7 @@ ggplot(global_cases_over_time, aes(x = Date)) +
 ## Analysis of model
 
 as we can see we can create a very rough linear model to predict very basic growth of global covid cases. There are some very important things to note about this model though, it only represents a pattern that is exhibited in a short and unusual window of time. If we were to expand this model to look forward past the historical data I would say it is extremely unlikely that the model would be accurate or representative for a few reasons. 1. We don't test and publish case data as rigorously as we did during COVID (2019-2022) so that is likely to bias. The other thing that is likely to change is how social distancing, masking and boosters are not rigorously enforced/used as they were, making the fundamentals that shape the pattern very different. For these reasons, I would say this is fine for what it is used for here. The last part is that I believe the relationship over time is fundamentally not linear, I think it is likely closer to a sigmoid growth curve where over time the rate slows down as more people are vaccinated and have already gotten covid.
+
+### Conclusion
+
+As we saw exhibited in the data COVID had a hyper growth period where it grew uncontrolled globally, and during 2021 continued to grow quite aggressively as experts had warned. We can likely correlate cases to deaths bit it is difficult to do with a different number of varibles that can affect this from country to country. But with a little bit of a time delay to a certain extent we can see that the number of cases grew less aggressively starting after the wide spread of the vaccine in the US but globally we don't have data on the availability of other vaccines to be able to do a similar comparison.
